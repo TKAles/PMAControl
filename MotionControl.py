@@ -20,8 +20,11 @@ class MotionControl():
         self.x_axis = []
         self.y_axis = []
         self.z_axis = []
+        self.positions = [0.0, 0.0, 0.0]
         self.velocity_target = 0.00
         self.z_offset = 0.00
+        # Subprocess semaphores
+        self.is_polling = False
         
     def connect_controller(self, _comport):
         '''
@@ -79,7 +82,7 @@ class MotionControl():
         set_z_offset(): Takes the current position of the z-stage
         and uses that as the 0.0 height for other calculations.
         '''
-        self.z_offset = self.z_axis.get_position()
+        self.z_offset = self.z_axis.get_position(Units.LENGTH_MILLIMETRES)
         return
 
     def move_x(self, _position):
@@ -127,5 +130,4 @@ class MotionControl():
             NO SOFTWARE CONTROL
         '''
         self.xy_controller.io.set_digital_output(2, _state)
-        
         return
