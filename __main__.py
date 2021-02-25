@@ -1,4 +1,5 @@
 from PyQt5 import QtWidgets, uic
+from PyQt5.QtWidgets import QFileDialog
 
 from serial.tools import list_ports
 import threading
@@ -25,6 +26,7 @@ class Ui(QtWidgets.QMainWindow):
         self.postfire_le.editingFinished.connect(self.postfire_length_changed)
         self.serial_port_combo.currentIndexChanged.connect(self.selected_port_changed)
         self.connect_controller_button.clicked.connect(self.toggle_controller)
+        self.select_file_button.clicked.connect(self.select_print)
         self.home_x_button.clicked.connect(self.home_x_mp)
         self.home_y_button.clicked.connect(self.home_y_mp)
         self.home_z_button.clicked.connect(self.home_z_mp)
@@ -60,6 +62,13 @@ class Ui(QtWidgets.QMainWindow):
 
     def selected_port_changed(self):
         print("comport combobox changed")
+        return
+
+    def select_print(self):
+        options = QFileDialog.Options()     #The meat allowing the user to select a file
+        self.gcode, _ = QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "","All Files (*)", options=options)
+        print(self.gcode)
+        print("selected")
         return
 
     def toggle_controller(self):

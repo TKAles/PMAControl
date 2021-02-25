@@ -106,7 +106,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButton">
+         <widget class="QPushButton" name="select_file_button">
           <property name="text">
            <string>Select Print File</string>
           </property>
