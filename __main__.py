@@ -1,4 +1,5 @@
 from PyQt5 import QtWidgets, uic
+from PyQt5 import Qt
 
 from serial.tools import list_ports
 import threading
@@ -23,6 +24,7 @@ class Ui(QtWidgets.QMainWindow):
         self.test_length_le.editingFinished.connect(self.test_length_changed)
         self.prefire_le.editingFinished.connect(self.prefire_length_changed)
         self.postfire_le.editingFinished.connect(self.postfire_length_changed)
+        self.standoff_distance_le.editingFinished.connect(self.standoff_changed)
         self.serial_port_combo.currentIndexChanged.connect(self.selected_port_changed)
         self.connect_controller_button.clicked.connect(self.toggle_controller)
         self.home_x_button.clicked.connect(self.home_x_mp)
@@ -36,7 +38,7 @@ class Ui(QtWidgets.QMainWindow):
         self.populate_serial_list()
         self.motion_controller = MotionControl()
         self.is_updating_positions = False
-        
+        self.is_test_completed = False
 
     def x_origin_changed(self):
         print("editingFinished event caught on x_origin_le")
@@ -62,14 +64,26 @@ class Ui(QtWidgets.QMainWindow):
         print("comport combobox changed")
         return
 
+    def standoff_changed(self):
+        print("Standoff distanced changed")
+        return
     def toggle_controller(self):
+        
         if self.connect_controller_button.text() == "Connect":
-            print(self.serial_port_combo.currentText())
             _serport = self.serial_port_combo.currentText().split('(')
-            self.motion_controller.connect_controller(_serport[1][0:4].__str__())
-            self.connect_controller_button.setText('Disconnect')
-            self.ui_update_thread = threading.Thread(target=self.position_update_worker, daemon=True)
-            self.ui_update_thread.start()
+            try:
+                self.motion_controller.connect_controller(_serport[1][0:4].__str__())
+                self.connect_controller_button.setText('Disconnect')
+                self.ui_update_thread = threading.Thread(target=self.position_update_worker, daemon=True)
+                self.ui_update_thread.start()
+                # Initalize the controller with safe values
+                # Digital output states should all be logic 0
+                self.motion_controller.xy_controller.io.set_all_digital_outputs(False)
+            except Exception:
+                errorbox = QtWidgets.QMessageBox()
+                errorbox.setWindowTitle('An Error Occurred!')
+                errorbox.setText('General Exception Was Caught.')
+
         
         elif self.connect_controller_button.text() == "Disconnect":
             self.is_updating_positions = False
@@ -85,14 +99,14 @@ class Ui(QtWidgets.QMainWindow):
 
     def set_current_xy(self):
         print("current xy clicked")
-        _xpos = float(self.x_origin_le.text())
-        _ypos = float(self.y_origin_le.text())
-        self.motion_controller.move_x(_xpos)
-        self.motion_controller.move_y(_ypos)
+        _xpos = float(self.x_origin_le.getText())
+        _ypos = float(self.y_origin_le.getText())
         return
 
     def run_test_fire(self):
         print("test fire clicked")
+        test_fire_thread = threading.Thread(target=self.test_fire_routine)
+        test_fire_thread.start()
         return
 
     def home_x(self):
@@ -152,6 +166,50 @@ class Ui(QtWidgets.QMainWindow):
             self.z_position_label.setText('{0:.3f}'.format(
                 self.motion_controller.z_axis.get_position(Units.LENGTH_MILLIMETRES)))
             time.sleep(_interval)
+
+    def test_fire_routine(self):
+        # default out velocities.
+        self.motion_controller.set_default_velocities()
+        _xs = float(self.x_origin_le.text())
+        # Build direction is +y
+        _ys = float(self.y_origin_le.text())
+        _ye = _ys + float(self.test_length_le.text())
+
+
+        # Set build velocity
+        _v = float(self.velocity_le.text())
+        self.motion_controller.y_axis.settings.set('maxspeed', _v, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+
+        # Move to start position
+        self.motion_controller.z_axis.move_absolute(50.0, Units.LENGTH_MILLIMETRES)
+        self.motion_controller.x_axis.move_absolute(_xs, Units.LENGTH_MILLIMETRES)
+        self.motion_controller.y_axis.move_absolute(_ys, Units.LENGTH_MILLIMETRES)
+        
+        # Position torch above plate
+        _standoff = float(self.standoff_distance_le.getText())
+        self.motion_controller.z_axis.move_absolute(
+            self.motion_controller.z_offset - _standoff, Units.LENGTH_MILLIMETRES)
+        
+        # Wait 100ms, Turn torch on, wait 50ms, turn feed on, go for it.
+        time.sleep(0.1)
+        self.motion_controller.toggle_torch(True)
+        time.sleep(0.05)
+        self.motion_controller.toggle_feed(True)
+        self.motion_controller.y_axis.wait_until_idle()
+        # Turn feed off
+        self.motion_controller.toggle_feed(False)
+        # Move a little more
+        self.motion_controller.y_axis.move_absolute(_ye + 1.0, Units.LENGTH_MILLIMETRES)
+        # Turn torch off
+        self.motion_controller.toggle_torch(False)
+        # Back torch off plate
+        self.motion_controller.z_axis.move_absolute(50.0, Units.LENGTH_MILLIMETRES)
+        print("A test of {0}mm at location X:{1:.2f}mm Y:{2:.2f}mm of velocity {3:.2f}mm/s has completed sucessfully.\nInspect layer and repeat if required.".format(
+            self.test_length_le.text(), _xs, _ys, _v 
+        ))
+        self.motion_controller.set_default_velocities()
+        return
+        
 # Load the Ui and execute the application
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)

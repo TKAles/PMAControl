@@ -131,3 +131,9 @@ class MotionControl():
         '''
         self.xy_controller.io.set_digital_output(2, _state)
         return
+
+    def set_default_velocities(self):
+        self.x_axis.settings.set('maxspeed', 100.0, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        self.y_axis.settings.set('maxspeed', 100.0, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        self.z_axis.settings.set('maxspeed', 100.0, Units.VELOCITY_MILLIMETRES_PER_SECOND)
+        return
